@@ -1,11 +1,13 @@
 module Main exposing (..)
 
 import Array exposing (Array)
+import Board exposing (..)
 import Browser exposing (Document)
 import Css exposing (..)
 import Html.Styled exposing (..)
 import Html.Styled.Attributes exposing (css)
 import Html.Styled.Events exposing (onClick)
+import Move exposing (PossibleMoves)
 import String exposing (fromInt)
 
 
@@ -18,66 +20,16 @@ main =
         }
 
 
-type alias Position =
-    ( Int, Int )
-
-
-type Player
-    = White
-    | Black
-
-
-playerToString : Player -> String
-playerToString player =
-    case player of
-        White ->
-            "White"
-
-        Black ->
-            "Black"
-
-
-type PieceType
-    = Pawn
-    | Knight
-    | Bishop
-    | Rook
-    | Queen
-    | King
-
-
-type alias Piece =
-    { player : Player
-    , pieceType : PieceType
-    }
-
-
 type GameState
     = Viewing
-    | OnPiece Position PieceType
-
-
-type alias PossibleMove =
-    Bool
-
-
-type alias BoardSquare =
-    ( Maybe Piece, PossibleMove )
-
-
-type alias Column =
-    Array BoardSquare
-
-
-type alias Board =
-    -- [column][row]
-    Array Column
+    | OnPiece Board.Position PieceType
 
 
 type alias Game =
     { turn : Player
     , state : GameState
     , board : Board
+    , possibleMoves : PossibleMoves
     }
 
 
@@ -85,71 +37,12 @@ type alias Model =
     Game
 
 
-white : PieceType -> Piece
-white pieceType =
-    Piece White pieceType
-
-
-black : PieceType -> Piece
-black pieceType =
-    Piece Black pieceType
-
-
-backRow =
-    [ Rook, Knight, Bishop, King, Queen, Bishop, Knight, Rook ] |> Array.fromList
-
-
-frontRow =
-    Array.repeat 8 Pawn
-
-
-row0 =
-    Array.map white backRow
-
-
-row1 =
-    Array.map white frontRow
-
-
-row6 =
-    Array.map black frontRow
-
-
-row7 =
-    Array.map black backRow
-
-
-newBoard : Board
-newBoard =
-    let
-        rowInitializer columnN rowN =
-            case rowN of
-                0 ->
-                    ( Array.get columnN row0, False )
-
-                1 ->
-                    ( Array.get columnN row1, False )
-
-                6 ->
-                    ( Array.get columnN row6, False )
-
-                7 ->
-                    ( Array.get columnN row7, False )
-
-                _ ->
-                    ( Nothing, False )
-
-        columnInitializer columnN =
-            Array.initialize 8 (rowInitializer columnN)
-    in
-    Array.initialize 8 columnInitializer
-
-
 newModel : Model
 newModel =
     { turn = White
     , state = Viewing
-    , board = newBoard
+    , board = Board.new
+    , possibleMoves = Move.emptyPossibleMoves
     }
 
 
@@ -159,70 +52,42 @@ init =
 
 
 type Msg
-    = StartMove Position PieceType
+    = StartMove Board.Position PieceType
+    | CommitMove Board.Position
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         StartMove position pieceType ->
-            -- TODO: update model board with marked possible moves
-            ( { model | state = OnPiece position pieceType }, Cmd.none )
+            ( { model
+                | possibleMoves = Move.generatePossibleMoves model.board position pieceType model.turn
+                , state = OnPiece position pieceType
+              }
+            , Cmd.none
+            )
+
+        CommitMove toPosition ->
+            let
+                updatedBoard =
+                    case model.state of
+                        Viewing ->
+                            model.board
+
+                        OnPiece fromPosition _ ->
+                            Move.commit fromPosition toPosition model.board
+            in
+            ( { model
+                | board = updatedBoard
+                , possibleMoves = Move.emptyPossibleMoves
+                , state = Viewing
+                , turn = nextTurn model.turn
+              }
+            , Cmd.none
+            )
 
 
-pieceDescription : Piece -> String
-pieceDescription { player, pieceType } =
-    case pieceType of
-        Pawn ->
-            case player of
-                White ->
-                    "♙"
-
-                Black ->
-                    "♟"
-
-        Knight ->
-            case player of
-                White ->
-                    "♘"
-
-                Black ->
-                    "♞"
-
-        Bishop ->
-            case player of
-                White ->
-                    "♗"
-
-                Black ->
-                    "♝"
-
-        Rook ->
-            case player of
-                White ->
-                    "♖"
-
-                Black ->
-                    "♜"
-
-        Queen ->
-            case player of
-                White ->
-                    "♕"
-
-                Black ->
-                    "♛"
-
-        King ->
-            case player of
-                White ->
-                    "♔"
-
-                Black ->
-                    "♚"
-
-
-pieceView : Model -> Position -> Piece -> Html Msg
+pieceView : Model -> Board.Position -> Piece -> Html Msg
 pieceView model position piece =
     let
         description =
@@ -242,7 +107,7 @@ pieceView model position piece =
 
 
 squareView : Model -> Int -> Int -> BoardSquare -> Html Msg
-squareView model column row ( mPiece, possibleMove ) =
+squareView model column row mPiece =
     let
         position =
             fromInt column ++ ":" ++ fromInt row
@@ -273,85 +138,41 @@ squareView model column row ( mPiece, possibleMove ) =
             , justifyContent center
             ]
 
-        --facing =
-        --    case model.turn of
-        --        White ->
-        --            1
-        --
-        --        Black ->
-        --            -1
-        --possibleMove =
-        --    False
-        --case model.state of
-        --    ViewingGameState ->
-        --        False
-        --
-        --    OnPiece ( fromColumn, fromRow ) pieceType ->
-        --        let
-        --            up1 =
-        --                fromRow + 1 == row
-        --
-        --            up2 =
-        --                fromRow + 2 == row
-        --
-        --            back1 =
-        --                fromRow - 1 == row
-        --
-        --            back2 =
-        --                fromRow - 2 == row
-        --
-        --            left1 =
-        --                fromColumn - 1 == column
-        --
-        --            left2 =
-        --                fromColumn - 2 == column
-        --
-        --            right1 =
-        --                fromColumn + 1 == column
-        --
-        --            right2 =
-        --                fromColumn + 2 == column
-        --
-        --            diagonal =
-        --                fromRow - row == fromColumn - column || fromRow - row == fromColumn + column || fromRow + row == fromColumn - column || fromRow + row == fromColumn + column
-        --        in
-        --        case pieceType of
-        --            Pawn ->
-        --                fromRow + facing == row && fromColumn == column
-        --
-        --            Knight ->
-        --                up1 && left2 || up1 && right2 || up2 && left1 || up2 && right1 || back1 && left2 || back1 && right2 || back2 && left1 || back2 && right1
-        --
-        --            Bishop ->
-        --                diagonal
-        --
-        --            Rook ->
-        --                False
-        --
-        --            Queen ->
-        --                False
-        --
-        --            King ->
-        --                False
+        possibleMove =
+            Move.possible ( column, row ) model.possibleMoves
+
         squareCss =
             if possibleMove then
-                border3 (px 3) solid (rgb 0 256 0) :: baseCss
+                List.append baseCss
+                    [ border3 (px 3) solid (rgb 0 256 0)
+                    , cursor pointer
+                    ]
 
             else
                 baseCss
+
+        baseAttributes =
+            [ css squareCss ]
+
+        attributes =
+            if possibleMove then
+                (onClick <| CommitMove ( column, row )) :: baseAttributes
+
+            else
+                baseAttributes
     in
-    div [ css squareCss ] [ positionHelper, pieceHtml ]
+    div attributes [ positionHelper, pieceHtml ]
 
 
 boardColumnView : Model -> ( Int, Column ) -> List (Html Msg) -> List (Html Msg)
-boardColumnView model ( invertColumnN, column ) html =
+boardColumnView model ( columnN, column ) html =
     div
         [ css
             [ displayFlex
             , flexDirection columnReverse
             ]
         ]
-        (List.indexedMap (squareView model (7 - invertColumnN)) (Array.toList column))
+        (List.indexedMap (squareView model columnN) (Array.toList column))
         :: html
 
 
@@ -362,7 +183,7 @@ view model =
             playerToString model.turn ++ " to move"
 
         boardHtml =
-            List.foldl
+            List.foldr
                 (boardColumnView model)
                 []
                 (Array.toIndexedList model.board)
