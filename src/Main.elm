@@ -30,6 +30,7 @@ type alias Game =
     , state : GameState
     , board : Board
     , possibleMoves : PossibleMoves
+    , winner : Maybe Player
     }
 
 
@@ -43,6 +44,7 @@ newModel =
     , state = Viewing
     , board = Board.new
     , possibleMoves = Move.emptyPossibleMoves
+    , winner = Nothing
     }
 
 
@@ -54,6 +56,7 @@ init =
 type Msg
     = StartMove Board.Position PieceType
     | CommitMove Board.Position
+    | DeclareWinner Player
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -69,22 +72,33 @@ update msg model =
 
         CommitMove toPosition ->
             let
-                updatedBoard =
+                updatedBoardModel =
                     case model.state of
                         Viewing ->
-                            model.board
+                            -- Assumed Never
+                            model
 
                         OnPiece fromPosition _ ->
-                            Move.commit fromPosition toPosition model.board
+                            if isKing toPosition model.board then
+                                let
+                                    ( winningModel, _ ) =
+                                        update (DeclareWinner model.turn) model
+                                in
+                                { winningModel | board = Move.commit fromPosition toPosition winningModel.board }
+
+                            else
+                                { model | board = Move.commit fromPosition toPosition model.board }
             in
-            ( { model
-                | board = updatedBoard
-                , possibleMoves = Move.emptyPossibleMoves
+            ( { updatedBoardModel
+                | possibleMoves = Move.emptyPossibleMoves
                 , state = Viewing
                 , turn = nextTurn model.turn
               }
             , Cmd.none
             )
+
+        DeclareWinner player ->
+            ( { model | winner = Just player }, Cmd.none )
 
 
 pieceView : Model -> Board.Position -> Piece -> Html Msg
@@ -176,29 +190,54 @@ boardColumnView model ( columnN, column ) html =
         :: html
 
 
-view : Model -> Document Msg
-view model =
+gameBody : Model -> String -> List Style -> List (Html Msg)
+gameBody model note boardCss =
     let
-        turnMessage =
-            playerToString model.turn ++ " to move"
-
         boardHtml =
             List.foldr
                 (boardColumnView model)
                 []
                 (Array.toIndexedList model.board)
     in
-    { title = "Elm Chess"
-    , body =
-        [ div
-            []
-            [ div [] [ text turnMessage ]
-            , div
-                [ css
-                    [ displayFlex ]
-                ]
-                boardHtml
+    [ div
+        []
+        [ div [] [ text note ]
+        , div
+            [ css
+                (displayFlex :: boardCss)
             ]
-            |> toUnstyled
+            boardHtml
         ]
-    }
+    ]
+
+
+inPlayBody : Model -> List (Html Msg)
+inPlayBody model =
+    let
+        turnMessage =
+            playerToString model.turn ++ " to move"
+    in
+    gameBody model turnMessage []
+
+
+postGameBody : Model -> Player -> List (Html Msg)
+postGameBody model winner =
+    let
+        winMessage =
+            playerToString winner ++ " wins!!"
+    in
+    gameBody model winMessage [ pointerEvents none ]
+
+
+view : Model -> Document Msg
+view model =
+    case model.winner of
+        Just winner ->
+            { title = "Elm Chess"
+            , body = List.map toUnstyled (postGameBody model winner)
+            }
+
+        Nothing ->
+            { title = "Elm Chess"
+            , body = List.map toUnstyled (inPlayBody model)
+            }

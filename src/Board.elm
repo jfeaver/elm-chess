@@ -181,3 +181,10 @@ get ( column, row ) board =
     Array.get column board
         |> Maybe.andThen (Array.get row)
         |> Maybe.andThen identity
+
+
+isKing : Position -> Board -> Bool
+isKing position board =
+    get position board
+        |> Maybe.map (\piece -> piece.pieceType == King)
+        |> Maybe.withDefault False
