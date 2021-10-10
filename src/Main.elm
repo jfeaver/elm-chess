@@ -1,6 +1,6 @@
 module Main exposing (..)
 
-import Array
+import Array exposing (Array)
 import Browser exposing (Document)
 import Css exposing (..)
 import Html.Styled exposing (..)
@@ -65,14 +65,13 @@ type alias BoardSquare =
     ( Maybe Piece, PossibleMove )
 
 
-type alias NumberedColumn =
-    ( Int, List BoardSquare )
+type alias Column =
+    Array BoardSquare
 
 
 type alias Board =
-    -- TODO: Board probably needs to be made of arrays so that I can more easily index things
-    -- [inverseColumn][row]
-    List NumberedColumn
+    -- [column][row]
+    Array Column
 
 
 type alias Game =
@@ -97,7 +96,7 @@ black pieceType =
 
 
 backRow =
-    [ Rook, Knight, Bishop, Queen, King, Bishop, Knight, Rook ] |> Array.fromList
+    [ Rook, Knight, Bishop, King, Queen, Bishop, Knight, Rook ] |> Array.fromList
 
 
 frontRow =
@@ -123,21 +122,27 @@ row7 =
 newBoard : Board
 newBoard =
     let
-        columnBuilder columnN () =
-            ( columnN
-            , [ ( Array.get columnN row0, False )
-              , ( Array.get columnN row1, False )
-              , ( Nothing, False )
-              , ( Nothing, False )
-              , ( Nothing, False )
-              , ( Nothing, False )
-              , ( Array.get columnN row6, False )
-              , ( Array.get columnN row7, False )
-              ]
-            )
+        rowInitializer columnN rowN =
+            case rowN of
+                0 ->
+                    ( Array.get columnN row0, False )
+
+                1 ->
+                    ( Array.get columnN row1, False )
+
+                6 ->
+                    ( Array.get columnN row6, False )
+
+                7 ->
+                    ( Array.get columnN row7, False )
+
+                _ ->
+                    ( Nothing, False )
+
+        columnInitializer columnN =
+            Array.initialize 8 (rowInitializer columnN)
     in
-    List.repeat 8 ()
-        |> List.indexedMap columnBuilder
+    Array.initialize 8 columnInitializer
 
 
 newModel : Model
@@ -338,7 +343,7 @@ squareView model column row ( mPiece, possibleMove ) =
     div [ css squareCss ] [ positionHelper, pieceHtml ]
 
 
-boardColumnView : Model -> NumberedColumn -> List (Html Msg) -> List (Html Msg)
+boardColumnView : Model -> ( Int, Column ) -> List (Html Msg) -> List (Html Msg)
 boardColumnView model ( invertColumnN, column ) html =
     div
         [ css
@@ -346,7 +351,7 @@ boardColumnView model ( invertColumnN, column ) html =
             , flexDirection columnReverse
             ]
         ]
-        (List.indexedMap (squareView model (7 - invertColumnN)) column)
+        (List.indexedMap (squareView model (7 - invertColumnN)) (Array.toList column))
         :: html
 
 
@@ -360,7 +365,7 @@ view model =
             List.foldl
                 (boardColumnView model)
                 []
-                model.board
+                (Array.toIndexedList model.board)
     in
     { title = "Elm Chess"
     , body =
