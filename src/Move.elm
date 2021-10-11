@@ -38,28 +38,27 @@ markPossibleMove ( column, row ) possibleMoves =
             possibleMoves
 
 
+markPossibleMoves : List Position -> PossibleMoves
+markPossibleMoves positions =
+    List.foldl markPossibleMove emptyPossibleMoves positions
+
+
 markPossibleMoveIfEmpty : Board -> Position -> PossibleMoves -> PossibleMoves
 markPossibleMoveIfEmpty board position possibleMoves =
-    case Board.get position board of
-        Just _ ->
-            possibleMoves
+    if Board.isEmpty board position then
+        markPossibleMove position possibleMoves
 
-        Nothing ->
-            markPossibleMove position possibleMoves
+    else
+        possibleMoves
 
 
 markPossibleMoveIfEnemy : Board -> Player -> Position -> PossibleMoves -> PossibleMoves
 markPossibleMoveIfEnemy board turn position possibleMoves =
-    case Board.get position board of
-        Just { player } ->
-            if player == Board.notPlayer turn then
-                markPossibleMove position possibleMoves
+    if Board.isEnemy board position turn then
+        markPossibleMove position possibleMoves
 
-            else
-                possibleMoves
-
-        Nothing ->
-            possibleMoves
+    else
+        possibleMoves
 
 
 generatePossibleMoves : Board -> Position -> PieceType -> Player -> PossibleMoves
@@ -96,7 +95,23 @@ generatePossibleMoves board ( fromColumn, fromRow ) pieceType turn =
             withAttacks
 
         Knight ->
-            emptyPossibleMoves
+            let
+                elles =
+                    [ ( 2, 1 ), ( 2, -1 ), ( -2, 1 ), ( -2, -1 ), ( 1, 2 ), ( 1, -2 ), ( -1, 2 ), ( -1, -2 ) ]
+
+                landings =
+                    List.map (Tuple.mapBoth ((+) fromColumn) ((+) fromRow))
+
+                isValid position =
+                    Board.validPosition position && Board.isNotSelf board position turn
+
+                validElles =
+                    List.filter isValid
+            in
+            elles
+                |> landings
+                |> validElles
+                |> markPossibleMoves
 
         Bishop ->
             emptyPossibleMoves

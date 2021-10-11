@@ -188,3 +188,33 @@ isKing position board =
     get position board
         |> Maybe.map (\piece -> piece.pieceType == King)
         |> Maybe.withDefault False
+
+
+mapPiece : Board -> Position -> (Piece -> a) -> a -> a
+mapPiece board position function default =
+    case get position board of
+        Just piece ->
+            function piece
+
+        Nothing ->
+            default
+
+
+isNotSelf : Board -> Position -> Player -> Bool
+isNotSelf board position self =
+    mapPiece board position (\{ player } -> player /= self) True
+
+
+isEnemy : Board -> Position -> Player -> Bool
+isEnemy board position self =
+    mapPiece board position (\{ player } -> player /= self) False
+
+
+isEmpty : Board -> Position -> Bool
+isEmpty board position =
+    mapPiece board position (always False) True
+
+
+validPosition : Position -> Bool
+validPosition ( column, row ) =
+    column <= 7 && column >= 0 && row <= 7 && row >= 0
