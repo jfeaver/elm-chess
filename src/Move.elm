@@ -62,10 +62,11 @@ markPossibleMoveIfEnemy board turn position possibleMoves =
         possibleMoves
 
 
-{-| delta is the difference in position from one square along the line to the next
+{-| "Ray" is a line that starts at a position and moves indefinitely in one direction.
+Delta is the difference in position from one board square along the line to the next board square
 -}
-moveAlongLine : Board -> Position -> Position -> Player -> PossibleMoves -> PossibleMoves
-moveAlongLine board delta position player possibleMoves =
+moveAlongRay : Board -> Position -> Position -> Player -> PossibleMoves -> PossibleMoves
+moveAlongRay board delta position player possibleMoves =
     let
         newPosition =
             Tuple.Extra.add delta position
@@ -81,7 +82,18 @@ moveAlongLine board delta position player possibleMoves =
 
     else
         markPossibleMove newPosition possibleMoves
-            |> moveAlongLine board delta newPosition player
+            |> moveAlongRay board delta newPosition player
+
+
+{-| Deltas is a list of differences. See moveALongRay comment.
+-}
+moveAlongRays : Board -> List Position -> Position -> Player -> PossibleMoves
+moveAlongRays board deltas position player =
+    let
+        moveAlong rayDelta =
+            moveAlongRay board rayDelta position player
+    in
+    List.foldl moveAlong emptyPossibleMoves deltas
 
 
 generatePossibleMoves : Board -> Position -> PieceType -> Player -> PossibleMoves
@@ -97,6 +109,21 @@ generatePossibleMoves board position pieceType turn =
 
                 Black ->
                     -1
+
+        diagonals =
+            [ ( 1, 1 ), ( 1, -1 ), ( -1, 1 ), ( -1, -1 ) ]
+
+        filesAndRanks =
+            [ ( 1, 0 ), ( -1, 0 ), ( 0, 1 ), ( 0, -1 ) ]
+
+        anyDirection =
+            List.append diagonals filesAndRanks
+
+        moveAlong deltas =
+            moveAlongRays board deltas position turn
+
+        landings =
+            List.map (Tuple.Extra.add position)
     in
     case pieceType of
         Pawn ->
@@ -125,9 +152,6 @@ generatePossibleMoves board position pieceType turn =
                 elles =
                     [ ( 2, 1 ), ( 2, -1 ), ( -2, 1 ), ( -2, -1 ), ( 1, 2 ), ( 1, -2 ), ( -1, 2 ), ( -1, -2 ) ]
 
-                landings =
-                    List.map (Tuple.Extra.add position)
-
                 isValid landing =
                     Board.validPosition landing && Board.isNotSelf board landing turn
             in
@@ -137,23 +161,21 @@ generatePossibleMoves board position pieceType turn =
                 |> markPossibleMoves
 
         Bishop ->
-            let
-                diagonals =
-                    [ ( 1, 1 ), ( 1, -1 ), ( -1, 1 ), ( -1, -1 ) ]
-
-                moveAlongDiagonal diagonal =
-                    moveAlongLine board diagonal position turn
-            in
-            List.foldl moveAlongDiagonal emptyPossibleMoves diagonals
+            moveAlong diagonals
 
         Rook ->
-            emptyPossibleMoves
+            moveAlong filesAndRanks
 
         Queen ->
-            emptyPossibleMoves
+            moveAlong anyDirection
 
         King ->
-            emptyPossibleMoves
+            let
+                isValid landing =
+                    -- TODO: This doesn't check for getting yourself into check
+                    Board.validPosition landing && Board.isNotSelf board landing turn
+            in
+            anyDirection |> landings |> List.filter isValid |> markPossibleMoves
 
 
 placePiece : Position -> Maybe Piece -> Board -> Board
