@@ -2,6 +2,7 @@ module Move exposing (PossibleMoves, commit, emptyPossibleMoves, generatePossibl
 
 import Array exposing (Array)
 import Board exposing (Board, Piece, PieceType(..), Player(..), Position)
+import Tuple.Extra
 
 
 type alias PossibleMove =
@@ -61,9 +62,34 @@ markPossibleMoveIfEnemy board turn position possibleMoves =
         possibleMoves
 
 
-generatePossibleMoves : Board -> Position -> PieceType -> Player -> PossibleMoves
-generatePossibleMoves board ( fromColumn, fromRow ) pieceType turn =
+{-| delta is the difference in position from one square along the line to the next
+-}
+moveAlongLine : Board -> Position -> Position -> Player -> PossibleMoves -> PossibleMoves
+moveAlongLine board delta position player possibleMoves =
     let
+        newPosition =
+            Tuple.Extra.add delta position
+
+        nextIsValid =
+            Board.validPosition newPosition && Board.isNotSelf board newPosition player
+
+        currentIsEnemy =
+            Board.isEnemy board position player
+    in
+    if currentIsEnemy || not nextIsValid then
+        possibleMoves
+
+    else
+        markPossibleMove newPosition possibleMoves
+            |> moveAlongLine board delta newPosition player
+
+
+generatePossibleMoves : Board -> Position -> PieceType -> Player -> PossibleMoves
+generatePossibleMoves board position pieceType turn =
+    let
+        ( fromColumn, fromRow ) =
+            position
+
         facing =
             case turn of
                 White ->
@@ -100,21 +126,25 @@ generatePossibleMoves board ( fromColumn, fromRow ) pieceType turn =
                     [ ( 2, 1 ), ( 2, -1 ), ( -2, 1 ), ( -2, -1 ), ( 1, 2 ), ( 1, -2 ), ( -1, 2 ), ( -1, -2 ) ]
 
                 landings =
-                    List.map (Tuple.mapBoth ((+) fromColumn) ((+) fromRow))
+                    List.map (Tuple.Extra.add position)
 
-                isValid position =
-                    Board.validPosition position && Board.isNotSelf board position turn
-
-                validElles =
-                    List.filter isValid
+                isValid landing =
+                    Board.validPosition landing && Board.isNotSelf board landing turn
             in
             elles
                 |> landings
-                |> validElles
+                |> List.filter isValid
                 |> markPossibleMoves
 
         Bishop ->
-            emptyPossibleMoves
+            let
+                diagonals =
+                    [ ( 1, 1 ), ( 1, -1 ), ( -1, 1 ), ( -1, -1 ) ]
+
+                moveAlongDiagonal diagonal =
+                    moveAlongLine board diagonal position turn
+            in
+            List.foldl moveAlongDiagonal emptyPossibleMoves diagonals
 
         Rook ->
             emptyPossibleMoves
@@ -146,60 +176,3 @@ commit ( fromColumn, fromRow ) toPosition board =
         |> Maybe.andThen (Array.get fromRow)
         |> Maybe.map (\mPiece -> placePiece toPosition mPiece board |> placePiece ( fromColumn, fromRow ) Nothing)
         |> Maybe.withDefault board
-
-
-
---facing =
---    case model.turn of
---        White ->
---            1
---
---        Black ->
---            -1
---    OnPiece ( fromColumn, fromRow ) pieceType ->
---        let
---            up1 =
---                fromRow + 1 == row
---
---            up2 =
---                fromRow + 2 == row
---
---            back1 =
---                fromRow - 1 == row
---
---            back2 =
---                fromRow - 2 == row
---
---            left1 =
---                fromColumn - 1 == column
---
---            left2 =
---                fromColumn - 2 == column
---
---            right1 =
---                fromColumn + 1 == column
---
---            right2 =
---                fromColumn + 2 == column
---
---            diagonal =
---                fromRow - row == fromColumn - column || fromRow - row == fromColumn + column || fromRow + row == fromColumn - column || fromRow + row == fromColumn + column
---        in
---        case pieceType of
---            Pawn ->
---                fromRow + facing == row && fromColumn == column
---
---            Knight ->
---                up1 && left2 || up1 && right2 || up2 && left1 || up2 && right1 || back1 && left2 || back1 && right2 || back2 && left1 || back2 && right1
---
---            Bishop ->
---                diagonal
---
---            Rook ->
---                False
---
---            Queen ->
---                False
---
---            King ->
---                False
