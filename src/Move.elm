@@ -98,6 +98,7 @@ moveAlongRays board deltas position player =
 
 generatePossibleMoves : Board -> Position -> PieceType -> Player -> PossibleMoves
 generatePossibleMoves board position pieceType turn =
+    -- TODO: This doesn't check for getting yourself into check
     let
         ( fromColumn, fromRow ) =
             position
@@ -172,7 +173,6 @@ generatePossibleMoves board position pieceType turn =
         King ->
             let
                 isValid landing =
-                    -- TODO: This doesn't check for getting yourself into check
                     Board.validPosition landing && Board.isNotSelf board landing turn
             in
             anyDirection |> landings |> List.filter isValid |> markPossibleMoves
