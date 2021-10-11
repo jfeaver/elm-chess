@@ -79,6 +79,7 @@ update msg model =
                             model
 
                         OnPiece fromPosition _ ->
+                            -- TODO: This doesn't check for a check or checkmate condition
                             if isKing toPosition model.board then
                                 let
                                     ( winningModel, _ ) =
@@ -134,7 +135,10 @@ squareView model column row mPiece =
                 rgb 250 250 250
 
         squareLength =
-            px 60
+            60
+
+        squareLengthPx =
+            px squareLength
 
         positionHelper =
             span [ css [ float left, Css.position absolute, top (px 0), left (px 0) ] ] [ text position ]
@@ -144,8 +148,8 @@ squareView model column row mPiece =
 
         baseCss =
             [ backgroundColor background
-            , height squareLength
-            , width squareLength
+            , height squareLengthPx
+            , width squareLengthPx
             , Css.position relative
             , displayFlex
             , alignItems center
@@ -160,6 +164,8 @@ squareView model column row mPiece =
                 List.append baseCss
                     [ border3 (px 3) solid (rgb 0 256 0)
                     , cursor pointer
+                    , height (px (squareLength - (2 * 3)))
+                    , width (px (squareLength - (2 * 3)))
                     ]
 
             else
